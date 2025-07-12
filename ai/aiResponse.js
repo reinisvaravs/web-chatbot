@@ -32,62 +32,77 @@ async function upsertToGoogleSheet(userData, userId) {
   if (!SPREADSHEET_ID)
     throw new Error("Missing GOOGLE_SHEET_ID in environment variables");
 
-  const auth = new google.auth.GoogleAuth({
-    keyFile: KEYFILEPATH,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-  const sheets = google.sheets({ version: "v4", auth });
-
-  // First, get all existing data to check for duplicates
-  const existingData = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:G`,
-  });
-
-  const rows = existingData.data.values || [];
-  let rowIndex = -1;
-
-  // Find existing row by userId (column G)
-  if (rows.length > 0) {
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i][6] === userId) {
-        // userId is in column G (index 6)
-        rowIndex = i + 1; // Google Sheets is 1-indexed
-        break;
-      }
-    }
-  }
-
-  const newRow = [
-    userData.name || "",
-    userData.email || "",
-    userData.reason || "",
-    new Date().toISOString(),
-    userData.city || "",
-    userData.colleague || "",
-    userId || "",
-  ];
-
-  if (rowIndex > 0) {
-    // Update existing row
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${rowIndex}:G${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [newRow] },
+  try {
+    const auth = new google.auth.GoogleAuth({
+      keyFile: KEYFILEPATH,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
-    console.log(
-      `Updated existing row at index ${rowIndex} for userId: ${userId}`
-    );
-  } else {
-    // Append new row
-    await sheets.spreadsheets.values.append({
+    const sheets = google.sheets({ version: "v4", auth });
+
+    // First, get all existing data to check for duplicates
+    const existingData = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A:G`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [newRow] },
     });
-    console.log(`Created new row for userId: ${userId}`);
+
+    const rows = existingData.data.values || [];
+    let rowIndex = -1;
+
+    // Find existing row by userId (column G)
+    if (rows.length > 0) {
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i][6] === userId) {
+          // userId is in column G (index 6)
+          rowIndex = i + 1; // Google Sheets is 1-indexed
+          break;
+        }
+      }
+    }
+
+    const newRow = [
+      userData.name || "",
+      userData.email || "",
+      userData.reason || "",
+      new Date().toISOString(),
+      userData.city || "",
+      userData.colleague || "",
+      userId || "",
+    ];
+
+    if (rowIndex > 0) {
+      // Update existing row
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A${rowIndex}:G${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [newRow] },
+      });
+      console.log(
+        `Updated existing row at index ${rowIndex} for userId: ${userId}`
+      );
+    } else {
+      // Append new row
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!A:G`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [newRow] },
+      });
+      console.log(`Created new row for userId: ${userId}`);
+    }
+  } finally {
+    // Clean up temp file if it was created
+    if (
+      KEYFILEPATH === "./.google-service-account.temp.json" &&
+      fs.existsSync(KEYFILEPATH)
+    ) {
+      try {
+        fs.unlinkSync(KEYFILEPATH);
+        console.log("Cleaned up temporary Google service account file");
+      } catch (e) {
+        console.warn("Failed to clean up temp file:", e.message);
+      }
+    }
   }
 }
 

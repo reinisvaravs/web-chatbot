@@ -27,3 +27,4 @@ dist-ssr
 
 # Google Cloud Service Account credentials
 google-service-account.json
+.google-service-account.temp.json
