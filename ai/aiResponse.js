@@ -3,6 +3,7 @@ import { findSimilarChunks } from "../db.js";
 import { OpenAI } from "openai";
 import { google } from "googleapis";
 import fs from "fs";
+import { checkCalendarAvailability } from "../gCalendar.js";
 
 export const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
 
@@ -106,6 +107,20 @@ async function upsertToGoogleSheet(userData, userId) {
   }
 }
 
+async function calendarAvailability() {
+  const now = new Date();
+  const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+  const result = await checkCalendarAvailability(
+    now.toISOString(),
+    threeDaysLater.toISOString()
+  );
+
+  console.log(result.free);
+
+  return result.free;
+}
+
 export async function aiResponse(
   openai,
   messages,
@@ -122,6 +137,7 @@ export async function aiResponse(
   // Step 1: Pre-check if RAG is needed
   const preCheckPrompt = `Does this user message require information from the knowledge base to answer helpfully, or can it be answered without it? Reply only "yes" or "no". Message: "${userMessage}"`;
   let needsRAG = false;
+
   try {
     const preCheckResponse = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -147,13 +163,63 @@ export async function aiResponse(
     .map((m) => `${m.role}: ${m.content}`)
     .join("\n");
 
+  // Check if this is a booking conversation by looking for JSON in previous messages
+  let needsCal = false;
+  let calendarData = [];
+
+  // Check if any previous assistant message contained JSON (indicating booking flow)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role === "assistant") {
+      const jsonRegex = /\{[\s\S]*?\}/;
+      if (jsonRegex.test(message.content)) {
+        needsCal = true;
+        console.log("JSON detected in previous message - booking flow active");
+        break;
+      }
+    }
+  }
+
+  // Also check if current user message contains booking keywords
+  const bookingKeywords = [
+    "book",
+    "appointment",
+    "meeting",
+    "schedule",
+    "demo",
+    "call",
+    "availability",
+    "time",
+    "slot",
+    "date",
+    "calendar",
+  ];
+  const hasBookingIntent = bookingKeywords.some((keyword) =>
+    userMessage.toLowerCase().includes(keyword)
+  );
+
+  if (hasBookingIntent) {
+    console.log("Booking keywords detected in user message");
+  }
+
+  // Get calendar availability if needed
+  if (needsCal) {
+    try {
+      calendarData = await calendarAvailability();
+      console.log("Calendar availability fetched for booking flow");
+    } catch (error) {
+      console.warn("Failed to get calendar availability:", error);
+    }
+  }
+
   // Step 3: Build the prompt
   const { buildPrompt } = await import("./buildPrompt.js");
   const prompt = buildPrompt(
     relevantChunks,
     userMessage,
     language,
-    conversationHistory
+    conversationHistory,
+    calendarData
   );
 
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
@@ -163,10 +229,13 @@ export async function aiResponse(
         messages: [{ role: "system", content: prompt }, ...messages],
       });
       const content = response.choices?.[0]?.message?.content || "";
+      console.log("AI Response content:", content.substring(0, 200) + "...");
+
       // Extract any JSON object (broad match)
       const jsonAnyRegex = /\{[\s\S]*?\}/;
       const match = content.match(jsonAnyRegex);
       if (match) {
+        console.log("JSON detected in AI response:", match[0]);
         let userData = null;
         let jsonStr = match[0];
         try {

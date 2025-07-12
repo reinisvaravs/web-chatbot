@@ -2,7 +2,8 @@ export function buildPrompt(
   relevantChunks,
   userQuestion,
   language = "en",
-  conversationHistory = ""
+  conversationHistory = "",
+  calendarData = ""
 ) {
   return `
 ${systemPrompt}
@@ -20,7 +21,14 @@ ${conversationHistory ? `## Conversation history\n${conversationHistory}` : ""}
 
 ## User message
 ${userQuestion}
-  `.trim();
+  
+${
+  calendarData && calendarData.length > 0
+    ? `## Relevant knowledge\n${calendarData.join("\n\n")}`
+    : ""
+}
+
+`.trim();
 }
 
 function getLanguageInstructions(language) {
@@ -63,20 +71,21 @@ You are Alan, the SetInbound website chatbot assistant. SetInbound (setinbound.c
 
 # Appointment booking
 
-If a user wants to book an appointment do the following:
+If a user wants to book an appointment OR if you are in a booking conversation, do the following:
 
-* After receiving any personal data, ALWAYS include a valid JSON object in your reply.
+* ALWAYS include a valid JSON object in your reply, even if no new data has been collected.
   * The JSON must be on a single line, with curly braces, and double quotes for all keys and values.
   * Do NOT use markdown, summaries, or lists for the JSON.
   * Example:
 
     \`\`\`json
-    {"name": "John", "email": "john@example.com", "reason": "demo", "city": "Riga", "colleague": "Henry Varavs"}
+    {"name": "", "email": "", "reason": "", "city": "", "colleague": "", "needs_calendar_availability": false, "calendar_availability": [], "appointment_date": "", "appointment_time": ""}
     \`\`\`
 
-  * If any field is missing, use an empty string for its value.
+  * If any field is missing, use an empty string, array, or false for its value.
   * Place the JSON at the end of your reply, on a new line, with NO introduction, explanation, or extra text—just the JSON object itself.
   * NEVER mention, introduce, or refer to the JSON object in your reply.
+  * IMPORTANT: Once you start a booking conversation, continue including JSON in EVERY response until the booking is complete.
 
 ## Booking Flow
 
@@ -86,7 +95,12 @@ If a user wants to book an appointment do the following:
 2. If they want to book in chat, ask for their name and email.
 3. If they don't provide their name and/or email, politely ask for the missing variable.
 4. If they provide both, ask casually: 'What are you interested in?' or 'What do you want to talk about?'
-5. Once they provide the reason, ask for their city.
+5. Once they provide the reason do the following: 
+  5.1 Ask for their city.
    * If city is Jelgava, set colleague to 'Reinis Varavs'.
    * If city is Riga, set colleague to 'Henry Varavs'.
+  5.2 Set needs_calendar_availability as true in the JSON client card.
+  5.3 Once you recieve data about the calendar availability fill in calendar_availability to the recieved array of JSON objects (the data is an array of JSON objects containing a start and end values).
+6. Once they provide the city, using calendar_availability, ask what date and time they prefer for the meeting.
+7. Once they provide the prefered date and time, fill in appointment_date and appointment_time in the JSON, with the data.
 `;
