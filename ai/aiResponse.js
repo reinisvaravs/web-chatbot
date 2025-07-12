@@ -162,7 +162,6 @@ export async function aiResponse(
         model: selectedModel,
         messages: [{ role: "system", content: prompt }, ...messages],
       });
-      // Check for ['booking'] tag in the response
       const content = response.choices?.[0]?.message?.content || "";
       // Extract any JSON object (broad match)
       const jsonAnyRegex = /\{[\s\S]*?\}/;
