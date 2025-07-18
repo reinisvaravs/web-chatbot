@@ -17,6 +17,7 @@ app.use(
     origin: [
       `${process.env.PROD_FRONTEND_URL}`,
       `${process.env.DEV_FRONTEND_URL}`,
+      `${process.env.REINIS_FRONTEND_URL}`,
     ],
   })
 );
@@ -35,10 +36,17 @@ app.post("/api/message", async (req, res) => {
   const requiredEnvs = ["OPENAI_KEY", "DATABASE_URL", "PROD_FRONTEND_URL"];
   const missingEnvs = requiredEnvs.filter((key) => !process.env[key]);
   if (missingEnvs.length > 0) {
-    console.error("[POST /api/message] Missing required env vars:", missingEnvs);
+    console.error(
+      "[POST /api/message] Missing required env vars:",
+      missingEnvs
+    );
   }
   if (!userId || !username || !content) {
-    console.warn("[POST /api/message] Missing fields:", { userId, username, content });
+    console.warn("[POST /api/message] Missing fields:", {
+      userId,
+      username,
+      content,
+    });
     return res
       .status(400)
       .json({ error: "Missing userId, username, or content" });
@@ -54,11 +62,22 @@ app.post("/api/message", async (req, res) => {
     res.json({ response });
   } catch (err) {
     // Improved error logging
-    console.error("[POST /api/message] Error:", err && err.stack ? err.stack : err);
+    console.error(
+      "[POST /api/message] Error:",
+      err && err.stack ? err.stack : err
+    );
     if (err && err.response && err.response.data) {
-      console.error("[POST /api/message] Error response data:", err.response.data);
+      console.error(
+        "[POST /api/message] Error response data:",
+        err.response.data
+      );
     }
-    res.status(500).json({ error: "Internal server error", details: err && err.message ? err.message : String(err) });
+    res
+      .status(500)
+      .json({
+        error: "Internal server error",
+        details: err && err.message ? err.message : String(err),
+      });
   }
 });
 
