@@ -16,7 +16,7 @@ app.use(
   cors({
     origin: [
       `${process.env.PROD_FRONTEND_URL}`,
-      `${process.env.DEV && process.env.DEV_FRONTEND_URL}`,
+      `${process.env.DEV_FRONTEND_URL}`,
     ],
   })
 );
