@@ -16,8 +16,7 @@ app.use(
   cors({
     origin: [
       `${process.env.PROD_FRONTEND_URL}`,
-      `${process.env.DEV_FRONTEND_URL}`,
-      `${process.env.REINIS_FRONTEND_URL}`,
+      `${process.env.DEV && process.env.DEV_FRONTEND_URL}`,
     ],
   })
 );
@@ -72,12 +71,10 @@ app.post("/api/message", async (req, res) => {
         err.response.data
       );
     }
-    res
-      .status(500)
-      .json({
-        error: "Internal server error",
-        details: err && err.message ? err.message : String(err),
-      });
+    res.status(500).json({
+      error: "Internal server error",
+      details: err && err.message ? err.message : String(err),
+    });
   }
 });
 
